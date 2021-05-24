@@ -10,7 +10,7 @@ I opted to use the CDN prebuilt distribution and not the `npm` package since tha
 git clone https://github.com/thheller/reagent-pdfjs.git
 cd reagent-pdfjs
 npm install
-npx shadow-cljs watch app
+npx shadow-cljs watch demo
 ```
 
 Wait for "Build completed." and open `http://localhost:8400` in your Browser. You should see a "Hello World" pdf displayed.
