@@ -13,4 +13,7 @@
  :builds
  {:demo
   {:target :browser
-   :modules {:main {:init-fn demo.app/init}}}}}
+   :modules {:main {:init-fn demo.app/init
+                    ;; work around closure compiler not allowing import() in optimized code
+                    :prepend "var shadow_esm_import = function(x) { return import(x); }"}
+             }}}}

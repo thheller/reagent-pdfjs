@@ -1,5 +1,7 @@
 (ns demo.app
   (:require
+    [shadow.cljs.modern :refer (js-await)]
+    [shadow.esm :as esm]
     [goog.object :as gobj]
     ["react" :as react]
     [reagent.core :as reagent]
@@ -9,10 +11,8 @@
 ;; pdfjs-dist npm lib often many versions behind what is available via CDN
 ;; also easier to manage worker, since that is prebuilt
 
-;; included via script tag in public/index.html
-;; it provides the window['pdfjs-dist/build/pdf'] global variable
-
-(def ^js pdfjs (gobj/get js/window "pdfjs-dist/build/pdf"))
+;; set in init
+(defonce ^js pdfjs nil)
 
 (defn pdf-canvas [{:keys [url]}]
   ;; ref
@@ -21,30 +21,24 @@
     ;; initialize and attach pdfjs when the canvas is mounted
     (react/useEffect
       (fn []
-        (-> (.getDocument pdfjs url)
-            (.-promise)
-            (.then (fn [^js pdf]
-                     (js/console.log "pdf" pdf)
-                     (.getPage pdf 1)))
-            (.then (fn [^js page]
-                     (js/console.log "page" page)
-                     (let [viewport (.getViewport page #js {:scale 1.5})
-                           canvas (.-current canvas-ref)
-                           context (.getContext canvas "2d")
+        (js-await [^js pdf (.-promise (.getDocument pdfjs url))]
+          (js/console.log "pdf" pdf)
+          (js-await [^js page (.getPage pdf 1)]
+            (js/console.log "page" page)
+            (let [viewport (.getViewport page #js {:scale 1.5})
+                  canvas (.-current canvas-ref)
+                  context (.getContext canvas "2d")
 
-                           render-context
-                           #js {:canvasContext context
-                                :viewport viewport}]
+                  render-context
+                  #js {:canvasContext context
+                       :viewport viewport}]
 
-                       (set! canvas -height (.-height viewport))
-                       (set! canvas -width (.-width viewport))
+              (set! canvas -height (.-height viewport))
+              (set! canvas -width (.-width viewport))
 
-                       (-> (.render page render-context)
-                           (.-promise)
-                           (.then (fn []
-                                    (js/console.log "Page rendered."))))
-
-                       ))))
+              (js-await [_ (.-promise (.render page render-context))]
+                (js/console.log "Page rendered."))
+              )))
 
         (fn []
           ;; not sure if there is supposed to be any cleanup for the pdfjs objects
@@ -66,8 +60,9 @@
   (rdom/render [app] root-el))
 
 (defn init []
-
-  ;; need to tell the lib where to load the worker from, also using same CDN
-  (set! (.. pdfjs -GlobalWorkerOptions -workerSrc) "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.8.335/pdf.worker.min.js")
-
-  (start))
+  ;; import pdfjs from CDN using JS import(), which returns a promise. so we wait for it to complete before starting our app
+  ;; could start our app and show a loading spinner or something, but to keep this example simple we just wait
+  (js-await [^js mod (esm/dynamic-import "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.0.189/pdf.min.mjs")]
+    (set! (.. mod -GlobalWorkerOptions -workerSrc) "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.0.189/pdf.worker.min.mjs")
+    (set! pdfjs mod)
+    (start)))
